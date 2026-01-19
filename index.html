@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Tatar Bright</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root{
+      --bg:#0b0c0f;
+      --card:#1b1e24;
+      --text:#e8eaf0;
+      --muted:#9aa3b2;
+      --line:#2a2f39;
+      --accent:#22c55e;
+      --danger:#ef4444;
+      --btn:#16a34a;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Arial,sans-serif;
+      background:var(--bg);
+      color:var(--text);
+    }
+    .wrap{
+      max-width:540px;
+      margin:0 auto;
+      padding:16px 16px 28px;
+    }
+    .top{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:12px;
+    }
+    .title{
+      font-size:20px;
+      font-weight:700;
+      letter-spacing:.2px;
+    }
+    .badge{
+      font-size:12px;
+      color:var(--muted);
+      border:1px solid var(--line);
+      padding:6px 10px;
+      border-radius:999px;
+    }
+    .card{
+      background:var(--card);
+      border:1px solid var(--line);
+      border-radius:16px;
+      padding:16px;
+      margin:12px 0;
+    }
+    .h{
+      font-weight:700;
+      margin:0 0 6px;
+      font-size:16px;
+    }
+    .p{
+      margin:0;
+      color:var(--muted);
+      line-height:1.35;
+      font-size:14px;
+    }
+    .btn{
+      width:100%;
+      background:var(--btn);
+      color:white;
+      border:none;
+      border-radius:999px;
+      padding:14px 16px;
+      font-size:16px;
+      font-weight:700;
+      margin-top:12px;
+    }
+    .btn:active{transform:scale(.99)}
+    .small{
+      font-size:12px;
+      color:var(--muted);
+      margin-top:10px;
+    }
+    .row{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-top:10px;
+    }
+    .chip{
+      border:1px solid var(--line);
+      padding:8px 10px;
+      border-radius:12px;
+      color:var(--text);
+      font-size:13px;
+      background:rgba(255,255,255,0.02);
+    }
+    .ok{color:var(--accent); font-weight:700}
+    .bad{color:var(--danger); font-weight:700}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div class="title">Tatar Bright</div>
+      <div class="badge" id="env">Mini App</div>
+    </div>
+
+    <div class="card">
+      <div class="h">Старт</div>
+      <p class="p">
+        Это MVP под тебя: слова/фразы + алгоритм тренировки 1–5 (без Speak).
+        Сейчас проверяем, что Telegram Mini App открывается и видит Supabase.
+      </p>
+
+      <div class="row">
+        <div class="chip">Новых слов: <b>4 / 8 / 12</b></div>
+        <div class="chip">Языки: <b>татарский ↔ русский</b></div>
+        <div class="chip">Режим: <b>личное использование</b></div>
+      </div>
+
+      <button class="btn" id="startBtn">Начать</button>
+      <div class="small" id="status">Проверка подключения…</div>
+    </div>
+
+    <div class="card" id="next" style="display:none;">
+      <div class="h">Дальше по плану</div>
+      <p class="p">
+        Следующий шаг: создаём таблицы в Supabase (слова/фразы/прогресс) и подключаем тренировки:
+        1) просмотр новых слов → 2) выбор перевода → 3) выбор слова → 4) аудио распознавание позже → 5) ввод перевода.
+      </p>
+      <div class="small mono" id="who"></div>
+    </div>
+  </div>
+
+<script>
+  // === ТВОИ ДАННЫЕ SUPABASE (уже вставлены) ===
+  const SUPABASE_URL = "https://pqqzevyrletltybijdzb.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_95qEq7mAQw-iOqhn5G-maQ_4gH8q1sg";
+
+  const tg = window.Telegram?.WebApp;
+  if (tg) {
+    tg.ready();
+    tg.expand();
+    document.getElementById("env").textContent = "Telegram Mini App";
+  }
+
+  const statusEl = document.getElementById("status");
+  const nextEl = document.getElementById("next");
+  const whoEl = document.getElementById("who");
+  const startBtn = document.getElementById("startBtn");
+
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  async function checkSupabase() {
+    try {
+      // быстрый "пинг": обращаемся к auth.getSession()
+      const { data, error } = await supabase.auth.getSession();
+      if (error) throw error;
+
+      statusEl.innerHTML = `<span class="ok">OK</span> Supabase подключен. Можно собирать MVP.`;
+      nextEl.style.display = "block";
+
+      const uid = tg?.initDataUnsafe?.user?.id ?? "не найден";
+      const uname = tg?.initDataUnsafe?.user?.username ?? "—";
+      whoEl.textContent = `Telegram user_id: ${uid} | username: ${uname}`;
+    } catch (e) {
+      statusEl.innerHTML = `<span class="bad">Ошибка</span> Supabase не отвечает: ${String(e?.message || e)}`;
+    }
+  }
+
+  startBtn.addEventListener("click", () => {
+    // Пока просто показываем, что кнопка работает.
+    if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred("medium");
+    alert("MVP запущен. Следующий шаг — таблицы и слова в Supabase.");
+  });
+
+  checkSupabase();
+</script>
+</body>
+</html>
